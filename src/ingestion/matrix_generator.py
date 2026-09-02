@@ -6,8 +6,8 @@ ROUTES = [
     {"origin": "DEL", "destination": "BOM"}
 ]
 
-# 5-Day Booking Horizon (T+1 to T+5)
-ADVANCE_WINDOWS = [1, 2, 3, 4, 5]
+# 10-Day Booking Horizon (T+1 to T+10)
+ADVANCE_WINDOWS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 def generate_query_matrix() -> List[Dict[str, Any]]:
     """Generates parameterized query targets for flight searches."""
