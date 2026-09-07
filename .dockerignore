@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.gitignore
+.venv/
+venv/
+streamlit_config_dev/*
+coveragerc
+.coverage
+htmlcov/
+node_modules/
