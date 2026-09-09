@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from urllib.parse import quote
-
 ROUTES = [
-    {"origin": "DEL", "destination": "BOM"}
+    {"route_code": "DEL-BOM", "origin": "DEL", "destination": "BOM"},
+    {"route_code": "BLR-DEL", "origin": "BLR", "destination": "DEL"},
+    {"route_code": "BOM-MAA", "origin": "BOM", "destination": "MAA"},
+    {"route_code": "DEL-CCU", "origin": "DEL", "destination": "CCU"},
+    {"route_code": "HYD-BOM", "origin": "HYD", "destination": "BOM"},
 ]
 
 # Set lead time window from 1 day ahead up to 10 days ahead (T+1 to T+10)

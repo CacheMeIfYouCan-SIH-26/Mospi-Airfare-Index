@@ -5,21 +5,17 @@ from components.heatmap import build_route_heatmap
 from components.trend_chart import build_trend_figure
 from data_loader import (
     PARQUET_PATH,
-    PROJECT_ROOT,
     STAGING_JSONL_PATH,
     count_quarantine_payloads,
     load_clean_parquet,
     load_raw_staging_jsonl,
 )
 
-PDF_CANDIDATES = [
-    "Role_1_Ingestion_Executive_Summary.pdf",
-    "Role_2_Data_Engineering_Documentation.pdf",
-    "Role_1_Ingestion_Documentation_v2.pdf",
-    "Role_1_Ingestion_Documentation.pdf",
-]
-
-st.set_page_config(page_title="MOSPI Airfare Index Dashboard", layout="wide")
+st.set_page_config(
+    page_title="Automated Real-Time Airfare Index for Indian CPI",
+    page_icon="✈️",
+    layout="wide",
+)
 
 DEFAULT_WINDOWS = ["T+1", "T+2", "T+3", "T+4", "T+5"]
 
@@ -105,32 +101,20 @@ def window_sort_key(window: str) -> int:
     return int(window[2:])
 
 
-def _resolve_report_pdf():
-    for name in PDF_CANDIDATES:
-        candidate = PROJECT_ROOT / name
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def filtered_csv(f: pd.DataFrame) -> bytes:
-    return f.to_csv(index=False).encode("utf-8")
-
-
 def classify_outliers(outliers: pd.DataFrame) -> pd.DataFrame:
-    cohort_mean = outliers.groupby("advance_window")["total_quote"].transform("mean")
+    cohort_mean = outliers.groupby("advance_window")["base_fare"].transform("mean")
     labeled = outliers.copy()
-    labeled["anomaly_type"] = labeled["total_quote"].gt(cohort_mean).map(
+    labeled["anomaly_type"] = labeled["base_fare"].gt(cohort_mean).map(
         {True: "PRICE SPIKE", False: "SUB-MARKET DIP"}
     )
     return labeled
 
 
 def outlier_style_functions(outliers: pd.DataFrame):
-    cohort_mean = outliers.groupby("advance_window")["total_quote"].transform("mean")
+    cohort_mean = outliers.groupby("advance_window")["base_fare"].transform("mean")
 
     def color_cells(row: pd.Series) -> list[str]:
-        if row["total_quote"] > cohort_mean[row.name]:
+        if row["base_fare"] > cohort_mean[row.name]:
             return ["background-color: #fdecea; color: #b71c1c; font-weight: 600"] * len(row)
         return ["background-color: #e8f5e9; color: #1b5e20; font-weight: 600"] * len(row)
 
@@ -157,54 +141,57 @@ def render_tab_trends(f: pd.DataFrame, route_full: pd.DataFrame) -> None:
     if chart_df.empty:
         st.warning("All records in this selection are outliers. Turn the toggle back on to view them.")
     else:
-        mean_quote = chart_df["total_quote"].mean()
-        ref_mean = route_full["total_quote"].mean()
-        composite_index = (100.0 * mean_quote / ref_mean) if ref_mean else 100.0
-
-        baseline5 = route_full.loc[route_full["advance_window"] == "T+5", "total_quote"]
-        mean_quote5 = baseline5.mean() if not baseline5.empty else None
-        delta_pct = None
-        if mean_quote5 is not None and mean_quote5:
-            delta_pct = (mean_quote - mean_quote5) / mean_quote5 * 100.0
-
         mean_base = chart_df["base_fare"].mean()
+        ref_base_mean = route_full["base_fare"].mean()
+        composite_index = (100.0 * mean_base / ref_base_mean) if ref_base_mean else 100.0
+
+        baseline5_base = route_full.loc[route_full["advance_window"] == "T+5", "base_fare"]
+        mean_base5 = baseline5_base.mean() if not baseline5_base.empty else None
+        delta_pct = None
+        if mean_base5 is not None and mean_base5:
+            delta_pct = (mean_base - mean_base5) / mean_base5 * 100.0
+
+        mean_total = chart_df["total_quote"].mean()
         quality_score = 100.0 * (1.0 - f["is_outlier"].mean()) if len(f) else 0.0
 
         kpi = st.columns(4)
-        kpi[0].metric("Composite Index (Base 100)", f"{composite_index:,.2f}")
+        kpi[0].metric("Base Fare Index (Base 100)", f"{composite_index:,.2f}")
         kpi[1].metric(
-            "Avg Total Quote (INR)",
-            _fmt_inr(mean_quote),
+            "Avg Base Fare (INR)",
+            _fmt_inr(mean_base),
             delta=f"{delta_pct:.2f}% vs T+5" if delta_pct is not None else None,
         )
-        kpi[2].metric("Avg Base Fare (INR)", _fmt_inr(mean_base))
+        kpi[2].metric("Avg Total Quote (INR)", _fmt_inr(mean_total))
         kpi[3].metric("Data Quality Score", f"{quality_score:.1f}%")
 
-        st.caption("KPI block: composite index vs route benchmark (base 100), currency delta vs T+5 baseline, "
+        st.caption("KPI block: base fare composite index vs route benchmark (base 100), pure base fare delta vs T+5 baseline, "
                    "and share of valid non-outlier records in the current selection.")
-        st.subheader("Total Quote Trend & Advance-Window Convergence")
-        fig = build_trend_figure(chart_df, baseline_mean=route_full["total_quote"].mean())
+        
+        st.subheader("Base Fare Trend & Advance-Window Convergence")
+        fig = build_trend_figure(chart_df, baseline_mean=route_full["base_fare"].mean())
         st.plotly_chart(fig, width="stretch")
 
     st.subheader("Outlier Inspection (Role 2 IQR Engine)")
     if not outliers.empty:
         st.caption("Red = anomaly price spike, green = sub-market dip, each judged against the advance-window "
-                   "cohort mean.")
+                   "base fare cohort mean.")
         labeled = classify_outliers(outliers)
-        columns = ["route_code", "advance_window", "departure_date", "total_quote",
+        columns = ["route_code", "advance_window", "departure_date", "base_fare", "total_quote",
                    "anomaly_type", "outlier_reason"]
         st.dataframe(
             outlier_style_functions(labeled)[columns],
             width="stretch",
-            column_config={"total_quote": st.column_config.NumberColumn("Total Quote (INR)",
-                                                                       format="₹ %.2f")},
+            column_config={
+                "base_fare": st.column_config.NumberColumn("Base Fare (INR)", format="₹ %.2f"),
+                "total_quote": st.column_config.NumberColumn("Total Quote (INR)", format="₹ %.2f"),
+            },
         )
     else:
         st.info("No outlier records flagged by the Role 2 IQR engine in the current selection.")
 
     st.subheader("Observation Detail")
     st.dataframe(
-        f[["route_code", "advance_window", "departure_date", "captured_at", "total_quote", "is_outlier"]],
+        f[["route_code", "advance_window", "departure_date", "captured_at", "base_fare", "total_quote", "is_outlier"]],
         width="stretch",
     )
 
@@ -236,9 +223,9 @@ def render_tab_breakdown(f: pd.DataFrame, matrix_df: pd.DataFrame) -> None:
     st.subheader("Route x Advance Window Fare Matrix")
     heat_value = st.radio(
         "Color intensity metric",
-        ["fare", "volatility"],
+        ["base_fare", "volatility"],
         index=0,
-        format_func=lambda v: "Average Fare Price" if v == "fare" else "Volatility Index (CV %)",
+        format_func=lambda v: "Average Base Fare" if v == "base_fare" else "Volatility Index (CV %)",
         horizontal=True,
     )
     st.plotly_chart(build_route_heatmap(matrix_df, value=heat_value), width="stretch")
@@ -287,7 +274,7 @@ def render_tab_pipeline(all_df: pd.DataFrame) -> None:
     if not outliers.empty:
         st.subheader("Flagged Outlier Rows")
         st.dataframe(
-            outliers[["route_code", "advance_window", "total_quote", "outlier_reason"]],
+            outliers[["route_code", "advance_window", "base_fare", "total_quote", "outlier_reason"]],
             width="stretch",
         )
 
@@ -310,8 +297,8 @@ inject_css()
 
 st.markdown(
     "<div class='dashboard-header'>"
-    "<h1>MOSPI Airfare Index Dashboard</h1>"
-    "<p>Automated High-Frequency Flight Price Indexing Engine (NSO / RBI Hackathon Scope)</p>"
+    "<h1>Automated Real-Time Airfare Index for Indian CPI</h1>"
+    "<p>MOSPI Airfare Indexing & Base Fare Price Analytics Engine (NSO / RBI Scope)</p>"
     "</div>",
     unsafe_allow_html=True,
 )
@@ -365,24 +352,6 @@ if df is not None:
     f = matrix_df[matrix_df["route_code"] == route]
     route_full = df[df["route_code"] == route]
 
-    with st.sidebar:
-        st.subheader("Exports")
-        report = _resolve_report_pdf()
-        if report is not None:
-            st.download_button(
-                "Download Executive Report (PDF)",
-                data=report.read_bytes(),
-                file_name=report.name,
-                mime="application/pdf",
-            )
-        else:
-            st.warning("Technical specification PDF not found in the project root.")
-        st.download_button(
-            "Download Filtered Data (CSV)",
-            data=filtered_csv(f),
-            file_name="filtered_airfare_index.csv",
-            mime="text/csv",
-        )
     tab1, tab2, tab3 = st.tabs(
         [
             "Airfare Index & Price Trends",

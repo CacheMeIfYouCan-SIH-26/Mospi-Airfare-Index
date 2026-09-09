@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mospi-airfare-index
+    name: real-time-airfare-index-cpi
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: streamlit run src/frontend/app.py --server.port $PORT --server.address 0.0.0.0
