@@ -1,23 +1,27 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
+from urllib.parse import quote
 
-# Target Route Configuration
 ROUTES = [
     {"origin": "DEL", "destination": "BOM"}
 ]
 
-# 10-Day Booking Horizon (T+1 to T+10)
-ADVANCE_WINDOWS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+# Set lead time window from 1 day ahead up to 10 days ahead (T+1 to T+10)
+ADVANCE_WINDOWS = list(range(1, 11))
+
+def build_flight_search_url(origin: str, destination: str, departure_date: str) -> str:
+    query = f"Flights to {destination} from {origin} on {departure_date}"
+    return f"https://www.google.com/travel/flights?q={quote(query)}"
 
 def generate_query_matrix() -> List[Dict[str, Any]]:
-    """Generates parameterized query targets for flight searches."""
     matrix = []
     today = datetime.now()
-    
+
     for route in ROUTES:
         for window in ADVANCE_WINDOWS:
+            # Target date represents flight departure date (up to 10 days in the future)
             target_date = (today + timedelta(days=window)).strftime("%Y-%m-%d")
-            
+
             task = {
                 "route_code": f"{route['origin']}-{route['destination']}",
                 "origin": route["origin"],
@@ -25,13 +29,12 @@ def generate_query_matrix() -> List[Dict[str, Any]]:
                 "advance_window": f"T+{window}",
                 "days_ahead": window,
                 "departure_date": target_date,
-                # Dynamic target URL endpoint template
-                "search_url": f"https://httpbin.org/get?origin={route['origin']}&dest={route['destination']}&date={target_date}"
+                "search_url": build_flight_search_url(route["origin"], route["destination"], target_date)
             }
             matrix.append(task)
-            
+
     return matrix
 
 if __name__ == "__main__":
     queries = generate_query_matrix()
-    print(f"[✔] Generated {len(queries)} matrix tasks for DEL-BOM (T+1 to T+5).")
+    print(f"[OK] Generated {len(queries)} matrix tasks for DEL-BOM (T+1 to T+10).")

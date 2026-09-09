@@ -78,11 +78,13 @@ def _print_summary(
     print("MOSPI Airfare Index - Role 2 Cleanup Summary")
     print("=" * 56)
     print(f"[1] Ingest & Validate : {total_ingested} ingested | {len(validated)} passed | {quarantined} quarantined")
-    print(f"[2] Unbundle Fares   : {len(clean)} fares decomposed")
-    print(f"[3] Outlier Filter   : {int(clean['is_outlier'].sum())} flagged out of {len(clean)} records")
-    print(f"[4] Outputs          : {CLEAN_PARQUET} (snappy) | {CLEAN_JSONL}")
+    print(f"[2] Unbundle Fares    : {len(clean)} fares decomposed")
+    print(f"[3] Outlier Filter    : {int(clean['is_outlier'].sum())} flagged out of {len(clean)} records")
+    print(f"[4] Outputs           : {CLEAN_PARQUET} (snappy) | {CLEAN_JSONL}")
     print("-" * 56)
-    price_summary = clean.groupby("route_code", dropna=False)["total_quote"].agg(
+    
+    # Aggregating strictly on pure base_fare for MOSPI standards
+    price_summary = clean.groupby("route_code", dropna=False)["base_fare"].agg(
         ["count", "mean", "min", "max"]
     )
     print(price_summary.round(2).to_string())
@@ -132,7 +134,9 @@ def run_role_2_pipeline(
     print(f"[OK] Parquet saved  -> {parquet_out}")
     print(f"[OK] JSONL saved    -> {jsonl_out}")
 
+    # Print clean summary focused on Base Fare
     _print_summary(total_ingested, validated, quarantined, df)
+    
     return df, clean_records
 
 
