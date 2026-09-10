@@ -1,204 +1,131 @@
-# Mospi-Airfare-Index
+# 🇮🇳 BHARAT AIR-CPI: Automated Airfare Inflation Index
 
-Automated airfare index pipeline for the MOSPI Airfare Index platform (SIH-26 hackathon).
-The repository is split by engineering roles. Each role owns a self-contained slice of
-the pipeline and hands off artifacts through well-defined file contracts under `seed_data/`.
-
-## Repository Layout
-
-```
-.
-|- src/
-|  |- ingestion/          Role 1: Data Ingestion (Playwright stealth scraper)
-|  |- engineering/        Role 2: Data Engineering & Cleaning Pipeline
-|  |- frontend/           Role 4: Streamlit dashboard (app.py, data_loader.py, components/)
-|- seed_data/             Staging, quarantine and clean artifacts (JSONL / Parquet)
-|- tests/                 Pytest suite for data engineering modules
-|- run_pipeline.py        End-to-end CLI orchestrator
-|- Makefile               Automation targets (ingest / clean-data / test / docs / dashboard)
-|- Dockerfile             Frontend dashboard container (Python 3.13, port 8501)
-|- generate_pdf.py        Role 1 PDF documentation
-`- Role_1_Ingestion_Executive_Summary.pdf
-```
+## 1. Project Information
+* **Project Title**: BHARAT AIR-CPI – Automated Real-Time Airfare Indexing & Analytics Engine
+* **PS ID**: 26056
+* **PS Title**: Automated Real-Time Airfare Inflation Tracking & Base Fare Decomposition Engine
+* **Category**: Software
+* **Theme**: Smart Governance / Macroeconomic Analytics (MoSPI & RBI Scope)
 
 ---
 
-## Role 1: Data Ingestion (summary)
-
-Role 1 drives a stealth Chromium browser via Playwright, intercepts network JSON fare
-responses, and persists each envelope as a JSON Line in `seed_data/staging_raw_payloads.jsonl`.
-See the dedicated Role 1 documentation for details.
-
----
-
-## Role 2: Data Engineering & Cleaning Pipeline
-
-Role 2 transforms the raw interception envelopes produced by Role 1 into a validated,
-columnar, analytics-ready dataset. The pipeline runs four sequential stages:
-
-1. **Ingest & Validate** - `schema_validator.py` reads the staging JSONL and validates every
-   envelope against the Pydantic v2 `RawStagingPayload` contract (dates in `YYYY-MM-DD`,
-   IATA codes as 3 uppercase letters). Malformed JSON and schema violations are quarantined
-   to `seed_data/quarantine_raw_payloads.jsonl` with the source line number and error reason.
-2. **Unbundle Fares** - `fare_unbundler.py` parses raw fare strings / HTML snippets and
-   decomposes them into `base_fare`, `tax_udf` and `convenience_fee` via regular expressions.
-   If explicit tax extraction fails, a proportional 82/18 fallback is applied using the
-   total quote.
-3. **IQR Outlier Filter** - `outlier_filter.py` flags outliers per `route_code` +
-   `advance_window` cohort. Cohorts with N >= 10 use the IQR fence rule
-   (Q1 - 1.5*IQR, Q3 + 1.5*IQR); sparse cohorts fall back to a Z-score rule (threshold 3.0).
-   Rows are flagged (`is_outlier`, `outlier_reason`), never dropped.
-4. **Output Hand-off** - `clean_staging_lead.py` orchestrates all stages and materialises
-   the clean dataset in two formats (see below).
-
-### Input / Output Files
-
-| Stage | File | Direction |
-| ----- | ---- | --------- |
-| Input (Role 1 hand-off) | `seed_data/staging_raw_payloads.jsonl` | ingests |
-| Quarantine (failures) | `seed_data/quarantine_raw_payloads.jsonl` | writes |
-| Clean artifact (primary) | `seed_data/clean_airfare_index.parquet` | writes (Snappy) |
-| Clean artifact (inspect) | `seed_data/clean_airfare_index.jsonl` | writes |
-| Verification audit | `seed_data/clean_airfare_index.parquet` | reads |
-
-The clean Parquet exposes 12 typed columns:
-`route_code`, `origin`, `destination`, `advance_window`, `departure_date`, `captured_at`,
-`base_fare`, `tax_udf`, `convenience_fee`, `total_quote`, `is_outlier`, `outlier_reason`.
-Critical columns (`total_quote`, `base_fare`, `route_code`) are guaranteed null-free.
-
-### Terminal Execution Commands
-
-Run the full Role 2 pipeline:
-
-```bash
-python src/engineering/clean_staging_lead.py
-# or module form
-python -m src.engineering.clean_staging_lead
-```
-
-Audit the resulting Parquet file:
-
-```bash
-python -m src.engineering.verify_parquet
-```
-
-Run the Role 2 unit tests:
-
-```bash
-python -m pytest tests/test_data_engineering.py -v
-```
-
-Generate the Role 2 PDF documentation:
-
-```bash
-python -m src.engineering.generate_role2_pdf
-```
-
-Orchestrate everything (roles or full pipeline):
-
-```bash
-python run_pipeline.py --role 2      # Role 2 only
-python run_pipeline.py --all         # Role 1 + Role 2
-make clean-data                      # if GNU make is available (WSL / Linux)
-```
-
-### Dependencies
-
-```bash
-pip install pydantic pandas numpy pyarrow pytest fpdf2 streamlit plotly
-```
+## 2. Problem Statement
+The Ministry of Statistics and Programme Implementation (MoSPI) and the Reserve Bank of India (RBI) require accurate, real-time tracking of airfare inflation for Consumer Price Index (CPI) calculations. Existing manual or naive web scraping methods face major challenges:
+* Failure to isolate pure airline revenue (**Base Fare**) from statutory airport taxes, User Development Fees (UDF), and booking convenience charges.
+* Price volatility across advance purchase lead times ($T+1$ to $T+5$ days prior to departure).
+* Anti-scraping measures, malformed API payloads, and statistical price anomalies skewing macro inflation trends.
 
 ---
 
-## Frontend Dashboard & Deployment (Role 4)
-
-The interactive dashboard is a Streamlit app at `src/frontend/app.py` backed by the
-clean Parquet artifact and staged raw payloads.
-
-### Launch the local web app
-
-From the repository root:
-
-```bash
-python -m streamlit run src/frontend/app.py
-```
-
-Or with GNU make (WSL / Linux):
-
-```bash
-make dashboard
-```
-
-Streamlit starts on `http://localhost:8501`. The dashboard provides:
-
-- Tab 1 - Airfare Index & Price Trends (composite index KPIs, advance-window
-  convergence chart, outlier inspection table with spike/dip highlighting).
-- Tab 2 - Unbundled Fare Breakdown (component bar chart and route x window fare matrix).
-- Tab 3 - Pipeline Health & Staging Logs (status badges, disk/compression stats,
-  raw JSONL inspector).
-- Sidebar exports - Executive report PDF download and filtered CSV export.
-- A deterministic mock-data fallback keeps the UI alive during demos even if the
-  Parquet artifact is missing.
-
-### Containerized deployment (Docker)
-
-A `Dockerfile` (Python 3.13 slim, port 8501) is included at the repository root.
-
-```bash
-docker build -t mospi-airfare-dashboard .
-docker run -p 8501:8501 mospi-airfare-dashboard
-```
-
-Then open `http://localhost:8501`.
+## 3. Proposed Solution
+**BHARAT AIR-CPI** is an end-to-end, multi-role data engineering and analytics pipeline:
+1. **Stealth Ingestion**: A Playwright-driven stealth crawler intercepts network JSON fare envelopes across 5 high-density domestic flight corridors.
+2. **Automated Cleaning & Unbundling**: A Pydantic v2 validation pipeline quarantines invalid payloads, unbundles ticket costs into pure base fare vs. taxes/fees using regex rules, and flags price anomalies using IQR (Interquartile Range) and Z-score filtering.
+3. **Columnar Materialization**: Clean records are written to compressed Snappy Parquet files (`clean_airfare_index.parquet`).
+4. **Sovereign Dashboard**: A high-performance Streamlit application styled with an Indian National Government aesthetic presents real-time CPI trends, convergence charts, and fare heatmaps for policy analysts.
 
 ---
 
-## Git Workflow for Collaborators
+## 4. Key Features
+* **Automated Stealth Ingestion**: Intercepts flight search API payloads across 5 major routes (`DEL-BOM`, `BLR-DEL`, `BOM-MAA`, `DEL-CCU`, `HYD-BOM`) and 5 lead-time horizons ($T+1$ to $T+5$).
+* **Fare Decomposition & Unbundling**: Deconstructs raw total quotes into Base Fare (~78%), Taxes & UDF (~17%), and Convenience Fees (~5%) with deterministic fallback logic.
+* **Schema Validation & Quarantine**: Pydantic v2 models validate data formats and quarantine malformed records to `quarantine_raw_payloads.jsonl`.
+* **Statistical Outlier Detection**: Cohort-based IQR and Z-score anomaly engine flags price spikes/dips without dropping valid historical data.
+* **Indian Sovereign Dashboard**: A Streamlit frontend styled with Saffron, Ashoka Navy, and Emerald Green, displaying composite price indices, advance-window convergence, and fare breakdown heatmaps.
 
-To receive the latest Role 2 updates (or any role's changes) on an existing local clone:
+---
 
-1. **Check your current state** (commit or stash local work first so nothing is lost):
+## 5. Technology Stack
+* **Frontend & Presentation**: Streamlit, Plotly Express
+* **Data Engineering & Cleaning**: Python 3.11+, Pandas, NumPy, SciPy, PyArrow, Pydantic v2
+* **Ingestion & Scraping**: Asyncio, Playwright (Chromium Stealth)
+* **Containerization & Deployment**: Docker, Render / Streamlit Cloud
 
-   ```bash
-   git status
-   ```
+---
 
-2. **Fetch and merge the latest upstream main**:
+## 6. Architecture
 
-   ```bash
-   git pull origin main
-   ```
+```text
+User / Policy Analyst
+          │
+          ▼
+┌────────────────────────────────────────────────────────┐
+│               Streamlit Web Command Center             │ (Role 4: Frontend)
+└───────────────────────────┬────────────────────────────┘
+                            │ Reads clean artifacts
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│           Compressed Columnar Parquet File             │ (seed_data/clean_airfare_index.parquet)
+└───────────────────────────▲────────────────────────────┘
+                            │ Materializes clean records
+┌───────────────────────────┴────────────────────────────┐
+│         Data Engineering & Cleaning Pipeline           │ (Role 2: ETL Engine)
+│  - Pydantic v2 Schema Validation                       │
+│  - Regex Fare Unbundling (Base / Tax / Fees)           │
+│  - Statistical Outlier Engine (IQR / Z-score)          │
+└───────────────────────────▲────────────────────────────┘
+                            │ Ingests raw JSONL
+┌───────────────────────────┴────────────────────────────┐
+│            Playwright Stealth Web Scraper              │ (Role 1: Ingestion)
+│  - Intercepts raw network JSON/gRPC flight envelopes   │
+└────────────────────────────────────────────────────────┘
+```
+## 7.Repository Structure
+```Mospi-Airfare-Index/
+├── README.md
+├── SUBMISSION_GUIDE.md
+├── submission/
+│   ├── PRESENTATION.md
+│   └── DEMO.md
+├── src/
+│   ├── ingestion/             # Role 1: Playwright stealth scraper & matrix generator
+│   ├── engineering/           # Role 2: Validation, unbundling, and IQR filtering
+│   └── frontend/              # Role 4: Streamlit UI (app.py, data_loader.py, components/)
+├── seed_data/                 # Shared data handoff folder
+│   ├── staging_raw_payloads.jsonl
+│   ├── quarantine_raw_payloads.jsonl
+│   └── clean_airfare_index.parquet
+├── docs/
+│   └── architecture.md
+├── assets/
+│   └── screenshots/
+│       └── README.md
+├── tests/                     # Pytest suite for data pipeline modules
+├── run_pipeline.py            # Master pipeline orchestrator CLI
+├── Dockerfile                 # Container environment setup
+├── requirements.txt           # Python dependency manifest
+```
+## 8. Final Presentation
+* Details regarding the final submission slides and structural deck are documented in `submission/PRESENTATION.md`.
+* Access the accessible viewer link or presentation document directly inside `submission/PRESENTATION.md`.
 
-3. **Resolve conflicts if prompted** - edit the conflicted files, then stage and complete:
+## 9. Demo Video
+A walkthrough video demonstrating the data ingestion, unbundling pipeline, and Streamlit command center is linked in `submission/DEMO.md`.
 
-   ```bash
-   git add <file>
-   git commit -m "resolve merge conflict"
-   ```
+## 11. Installation
 
-4. **Verify dependencies and run the test suite** before continuing development:
-
-   ```bash
-   pip install -r requirements.txt
-   python -m pytest tests/ -v -p no:cacheprovider
-   ```
-
-5. **Smoke-test the Role 2 pipeline end to end** (requires the staged JSONL present):
-
-   ```bash
-   python -m src.engineering.clean_staging_lead
-   python -m src.engineering.verify_parquet
-   ```
-
-### For first-time contributors (new clone)
-
+1. **Clone the repository**:
 ```bash
-git clone https://github.com/CacheMeIfYouCan-SIH-26/Mospi-Airfare-Index.git
+git clone [https://github.com/CacheMeIfYouCan-SIH-26/Mospi-Airfare-Index.git](https://github.com/CacheMeIfYouCan-SIH-26/Mospi-Airfare-Index.git)
 cd Mospi-Airfare-Index
-git checkout main
+```
+2. **Install dependencies**:
+```bash
 pip install -r requirements.txt
 ```
-
-> **Note on Windows / synced folders:** files under the repo may briefly become
-> read-only while the sync client touches them. If a write fails, clear the attribute:
-> `Set-ItemProperty -Path <file> -Name IsReadOnly -Value $false`.
+3.Install Playwright Browsers
+```bash
+playwright install chromium
+```
+## 12. Run
+Step 1: Run the Data Pipeline (Role 2 Cleaning)
+Process raw staging payloads from seed_data/ into a clean Parquet dataset:
+```bash
+python -m src.engineering.clean_staging_lead
+```
+##12. Run
+Step 1: Run the Data Pipeline
+Process raw staging payloads from seed_data/ into a clean Parquet dataset:
+```bash
+python -m src.engineering.clean_staging_lead
+```

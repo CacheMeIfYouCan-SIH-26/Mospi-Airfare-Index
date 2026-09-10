@@ -1,4 +1,4 @@
-=import argparse
+import argparse
 import asyncio
 import json
 import os
@@ -7,7 +7,7 @@ import stat
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional, Set
 from urllib.parse import quote
 
 from playwright.async_api import Response, async_playwright
@@ -28,8 +28,8 @@ DETAIL_URL_MARKERS = ("detail", "itinerary", "shoppingresults", "fare", "baggage
 DETAIL_BODY_KEYWORDS = (b"baggage", b"seat", b"cabin", b"farebreakdown", b"totalprice", b"carrier")
 
 _SEAT_VOCAB = (
-    "ultra", "basic", "saver", "standard", "comfort", "flex", "value",
-    "premium economy", "economy", "business", "first",
+    "premium economy", "ultra", "basic", "saver", "standard", "comfort", 
+    "flex", "value", "economy", "business", "first",
 )
 _PRICE_PAT = re.compile(r"(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d+)?)", re.IGNORECASE)
 _BAGGAGE_PAT = re.compile(r"(\d{1,2})\s*(?:kg|kilo|kgs)", re.IGNORECASE)
@@ -41,7 +41,8 @@ _AIRPORT_NAMES = {
     "HYD": "Hyderabad", "CCU": "Kolkata", "MAA": "Chennai",
 }
 
-_SEAT_ALT = "|".join(re.escape(v) for v in _SEAT_VOCAB)
+# Sort keywords by length descending so "premium economy" takes priority over "economy"
+_SEAT_ALT = "|".join(re.escape(v) for v in sorted(_SEAT_VOCAB, key=len, reverse=True))
 _ROW_TOKEN_RE = re.compile(
     rf"({_SEAT_ALT})|(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d+)?)",
     re.IGNORECASE,
@@ -136,8 +137,12 @@ def _decode_payload(body: bytes, content_type: str) -> dict:
     except Exception:
         try:
             parsed = json.loads(body.decode("utf-8", errors="ignore"))
-            return {"api_response_type": "json", "content_type": content_type,
-                    "body_length": len(body), "api_response": parsed}
+            return {
+                "api_response_type": "json", 
+                "content_type": content_type,
+                "body_length": len(body), 
+                "api_response": parsed
+            }
         except Exception:
             return {
                 "api_response_type": "binary",
@@ -192,14 +197,16 @@ def _parse_fare_breakdown(text: str) -> tuple:
 
 
 def _append_staging_record(record: dict) -> None:
-    os.makedirs(os.path.dirname(OUTPUT_STAGING_FILE), exist_ok=True)
+    dir_path = os.path.dirname(OUTPUT_STAGING_FILE)
+    if dir_path:
+        os.makedirs(dir_path, exist_ok=True)
     if os.name == "nt" and os.path.exists(OUTPUT_STAGING_FILE):
         try:
             os.chmod(OUTPUT_STAGING_FILE, stat.S_IWRITE)
         except Exception:
             pass
     with open(OUTPUT_STAGING_FILE, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record) + "\n")
+        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 async def handle_network_interception(response: Response, query_task: dict) -> None:
@@ -230,10 +237,13 @@ async def handle_network_interception(response: Response, query_task: dict) -> N
 
 async def _run_bulk_scrape(page, task: dict, index: int, total: int) -> None:
     url = build_search_url(task)
+    active_tasks: Set[asyncio.Task] = set()
 
     def make_handler(task_ref=task):
         def handler(response: Response) -> None:
-            asyncio.create_task(handle_network_interception(response, task_ref))
+            t = asyncio.create_task(handle_network_interception(response, task_ref))
+            active_tasks.add(t)
+            t.add_done_callback(active_tasks.discard)
 
         return handler
 
@@ -247,6 +257,9 @@ async def _run_bulk_scrape(page, task: dict, index: int, total: int) -> None:
         print(f"[ERR] {task['advance_window']} | {task['departure_date']}: {err}")
     finally:
         page.remove_listener("response", handler)
+        # Ensure all background interception tasks finish reading bodies before moving on
+        if active_tasks:
+            await asyncio.gather(*active_tasks, return_exceptions=True)
 
 
 async def _submit_search_form(page, task: dict) -> None:
@@ -257,27 +270,34 @@ async def _submit_search_form(page, task: dict) -> None:
     for label, city in (("Where from?", origin_name), ("Where to?", dest_name)):
         try:
             field = page.get_by_label(label, exact=False).first
-            await field.click(timeout=4000)
-            await field.fill(city, timeout=4000)
-            await field.press("ArrowDown")
-            await field.press("Enter")
+            if await field.is_visible(timeout=2000):
+                await field.click(timeout=2000)
+                await field.fill(city, timeout=2000)
+                await field.press("ArrowDown")
+                await field.press("Enter")
         except Exception as err:
             print(f"[INFO] airport select '{city}' skipped: {repr(err)[:100]}")
 
     try:
         departure = page.get_by_label("Departure", exact=True).first
-        await departure.click(timeout=4000)
-        await departure.fill(task["departure_date"], timeout=4000)
-        await departure.press("Enter")
+        if await departure.is_visible(timeout=2000):
+            await departure.click(timeout=2000)
+            await departure.fill(task["departure_date"], timeout=2000)
+            await departure.press("Enter")
     except Exception as err:
         print(f"[INFO] departure date entry skipped: {repr(err)[:100]}")
 
     try:
         done = page.get_by_role("button", name=re.compile(r"^\s*done\s*$", re.IGNORECASE)).first
-        await done.click(timeout=3000)
+        if await done.is_visible(timeout=2000):
+            await done.click(timeout=2000)
     except Exception:
         pass
-    await page.keyboard.press("Enter")
+    
+    try:
+        await page.keyboard.press("Enter")
+    except Exception:
+        pass
 
 
 async def _capture_flight_detail(response: Response, holder: dict) -> None:
@@ -332,8 +352,12 @@ async def _persist_single_flight_record(
     if holder["body"] is not None:
         raw_api = _decode_payload(holder["body"], "application/grpc")
     else:
-        raw_api = {"api_response_type": "dom", "content_type": "dom",
-                   "api_response": None, "body_length": 0}
+        raw_api = {
+            "api_response_type": "dom", 
+            "content_type": "dom",
+            "api_response": None, 
+            "body_length": 0
+        }
 
     raw_payload = dict(raw_api)
     raw_payload.update({
@@ -366,9 +390,12 @@ async def _persist_single_flight_record(
 
 async def _run_targeted_scrape(page, task: dict, target: FlightTarget) -> None:
     holder = {"url": None, "body": None}
+    active_tasks: Set[asyncio.Task] = set()
 
     def on_response(response: Response) -> None:
-        asyncio.create_task(_capture_flight_detail(response, holder))
+        t = asyncio.create_task(_capture_flight_detail(response, holder))
+        active_tasks.add(t)
+        t.add_done_callback(active_tasks.discard)
 
     page.on("response", on_response)
     search_url = task.get("search_url", build_search_url(task))
@@ -394,6 +421,8 @@ async def _run_targeted_scrape(page, task: dict, target: FlightTarget) -> None:
         print(f"[ERR] {task['advance_window']} | {task['departure_date']}: {repr(err)[:200]}")
     finally:
         page.remove_listener("response", on_response)
+        if active_tasks:
+            await asyncio.gather(*active_tasks, return_exceptions=True)
 
 
 async def run_data_ingestion_pipeline(target: Optional[FlightTarget] = None) -> None:
@@ -434,12 +463,12 @@ def _parse_args(argv) -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = _parse_args(sys.argv[1:])
-    target = None
+    target_obj = None
     if args.flight_number:
         carrier_code, _ = _parse_flight_details(args.flight_number)
-        target = FlightTarget(
+        target_obj = FlightTarget(
             flight_number=normalize_flight_number(args.flight_number),
             flight_id=args.flight_id,
             carrier_code=carrier_code or None,
         )
-    asyncio.run(run_data_ingestion_pipeline(target=target))
+    asyncio.run(run_data_ingestion_pipeline(target=target_obj))
