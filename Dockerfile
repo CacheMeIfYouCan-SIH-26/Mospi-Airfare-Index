@@ -13,4 +13,4 @@ ENV STREAMLIT_SERVER_HEADLESS=true \
     STREAMLIT_SERVER_PORT=8501 \
     STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
-CMD ["python", "-m", "streamlit", "run", "src/frontend/app.py"]
+CMD ["python", "-m", "streamlit", "run", "src/frontend/app.py"] 

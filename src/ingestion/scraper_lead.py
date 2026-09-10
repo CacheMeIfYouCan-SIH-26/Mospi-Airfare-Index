@@ -1,4 +1,4 @@
-import argparse
+=import argparse
 import asyncio
 import json
 import os
@@ -194,7 +194,10 @@ def _parse_fare_breakdown(text: str) -> tuple:
 def _append_staging_record(record: dict) -> None:
     os.makedirs(os.path.dirname(OUTPUT_STAGING_FILE), exist_ok=True)
     if os.name == "nt" and os.path.exists(OUTPUT_STAGING_FILE):
-        os.chmod(OUTPUT_STAGING_FILE, stat.S_IWRITE)
+        try:
+            os.chmod(OUTPUT_STAGING_FILE, stat.S_IWRITE)
+        except Exception:
+            pass
     with open(OUTPUT_STAGING_FILE, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
 
@@ -247,7 +250,7 @@ async def _run_bulk_scrape(page, task: dict, index: int, total: int) -> None:
 
 
 async def _submit_search_form(page, task: dict) -> None:
-    """Drives Google Flights' search form to force the results view (URL alone is unreliable)."""
+    """Drives Google Flights' search form to force the results view."""
     origin_name = _AIRPORT_NAMES.get(task["origin"], task["origin"])
     dest_name = _AIRPORT_NAMES.get(task["destination"], task["destination"])
 
@@ -349,7 +352,7 @@ async def _persist_single_flight_record(
         "destination": task["destination"],
         "advance_window": task["advance_window"],
         "departure_date": task["departure_date"],
-        "intercepted_url": holder["url"] or task["search_url"],
+        "intercepted_url": holder["url"] or task.get("search_url", build_search_url(task)),
         "scrape_type": "single_flight_detail",
         "flight_number": flight_number,
         "carrier": carrier_label,
@@ -368,8 +371,9 @@ async def _run_targeted_scrape(page, task: dict, target: FlightTarget) -> None:
         asyncio.create_task(_capture_flight_detail(response, holder))
 
     page.on("response", on_response)
+    search_url = task.get("search_url", build_search_url(task))
     try:
-        await page.goto(task["search_url"], wait_until="domcontentloaded", timeout=45000)
+        await page.goto(search_url, wait_until="domcontentloaded", timeout=45000)
         await _submit_search_form(page, task)
         try:
             await page.wait_for_load_state("networkidle", timeout=25000)

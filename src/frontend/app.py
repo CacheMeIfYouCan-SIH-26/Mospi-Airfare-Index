@@ -1,80 +1,154 @@
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 from components.heatmap import build_route_heatmap
 from components.trend_chart import build_trend_figure
-from data_loader import (
-    PARQUET_PATH,
-    STAGING_JSONL_PATH,
-    count_quarantine_payloads,
-    load_clean_parquet,
-    load_raw_staging_jsonl,
-)
+from data_loader import load_clean_parquet
 
 st.set_page_config(
-    page_title="Automated Real-Time Airfare Index for Indian CPI",
-    page_icon="✈️",
+    page_title="National Airfare Inflation Index | MoSPI & RBI Portal",
+    page_icon="🇮🇳",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 DEFAULT_WINDOWS = ["T+1", "T+2", "T+3", "T+4", "T+5"]
 
 
-def inject_css() -> None:
+def inject_vibrant_indian_theme() -> None:
     st.markdown(
         """
         <style>
-        .dashboard-header {
-            background: linear-gradient(135deg, #0f1c2e 0%, #20304a 100%);
-            color: #ffffff;
-            padding: 1.4rem 1.6rem;
-            border-radius: 10px;
-            border: 1px solid #33475f;
-            margin-bottom: 0.6rem;
+        /* 1. TRICOLOR TOP ACCENT BAR */
+        .stApp::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: linear-gradient(90deg, #FF9933 0%, #FF9933 33%, #FFFFFF 33%, #FFFFFF 66%, #138808 66%, #138808 100%);
+            z-index: 999999;
         }
-        .dashboard-header h1 {
-            margin: 0;
-            font-size: 1.7rem;
-            color: #ffffff;
+
+        /* 2. MAIN APP CANVAS - Crisp Govt Portal Theme */
+        .stApp {
+            background-color: #F8FAFC;
+            color: #0F172A;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
-        .dashboard-header p {
-            margin: 0.25rem 0 0;
-            font-size: 0.95rem;
-            color: #b8c7db;
+
+        /* 3. NATIONAL GOVERNMENT PORTAL BANNER */
+        .gov-banner {
+            background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 60%, #064E3B 100%);
+            border-radius: 12px;
+            padding: 1.6rem 2.2rem;
+            margin-top: 0.6rem;
+            margin-bottom: 1.8rem;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25);
+            border-left: 8px solid #FF9933;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
+        .gov-title-box h1 {
+            color: #FFFFFF !important;
+            font-size: 2.1rem !important;
+            font-weight: 800 !important;
+            margin: 0 !important;
+            letter-spacing: -0.5px;
+        }
+        .gov-title-box p {
+            color: #E2E8F0 !important;
+            font-size: 1.0rem !important;
+            margin-top: 0.4rem !important;
+            font-weight: 500 !important;
+        }
+        .sih-badge {
+            background: linear-gradient(135deg, #FF9933 0%, #D97706 100%);
+            color: #FFFFFF;
+            padding: 0.55rem 1.2rem;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+            text-align: center;
+            border: 1px solid #FDE68A;
+        }
+
+        /* 4. SIDEBAR STYLING */
+        section[data-testid="stSidebar"] {
+            background-color: #0F172A !important;
+            border-right: 2px solid #E2E8F0 !important;
+        }
+        section[data-testid="stSidebar"] h1,
+        section[data-testid="stSidebar"] h2,
+        section[data-testid="stSidebar"] h3,
+        section[data-testid="stSidebar"] label {
+            color: #F8FAFC !important;
+            font-weight: 700 !important;
+        }
+
+        /* 5. VIBRANT HIGH-CONTRAST METRIC CARDS */
         div[data-testid="stMetric"] {
-            background-color: #ffffff;
-            border: 1px solid #cbd5e1;
-            border-left: 4px solid #1f4e79;
-            border-radius: 8px;
-            padding: 0.9rem 1.1rem;
-            box-shadow: 0 2px 6px rgba(15, 28, 46, 0.08);
+            background-color: #FFFFFF !important;
+            border: 1px solid #E2E8F0 !important;
+            border-radius: 12px !important;
+            padding: 1.2rem 1.4rem !important;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08) !important;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
+        div[data-testid="stMetric"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12) !important;
+        }
+
+        /* INDIVIDUAL CARD BORDER COLORWAYS */
+        div[data-testid="stMetric"]:nth-child(1) { border-top: 6px solid #FF9933 !important; }
+        div[data-testid="stMetric"]:nth-child(2) { border-top: 6px solid #1D4ED8 !important; }
+        div[data-testid="stMetric"]:nth-child(3) { border-top: 6px solid #059669 !important; }
+        div[data-testid="stMetric"]:nth-child(4) { border-top: 6px solid #7C3AED !important; }
+
+        /* METRIC TYPOGRAPHY FIXES */
+        div[data-testid="stMetricLabel"] p,
+        div[data-testid="stMetricLabel"] label,
         div[data-testid="stMetricLabel"] {
-            color: #33475f;
-            font-weight: 600;
+            color: #1E293B !important;
+            font-weight: 800 !important;
+            font-size: 1.0rem !important;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
+        div[data-testid="stMetricValue"] div,
         div[data-testid="stMetricValue"] {
-            color: #0f1c2e;
+            color: #0F172A !important;
+            font-weight: 900 !important;
+            font-size: 2.0rem !important;
         }
-        .status-badge {
-            display: inline-block;
-            padding: 0.45rem 1.1rem;
-            border: 1px solid #c6e6c6;
-            border-radius: 20px;
-            background: #e8f5e9;
-            color: #1b5e20;
-            font-weight: 600;
-            font-size: 0.95rem;
-            margin-right: 0.6rem;
+
+        /* 6. TAB STYLING */
+        button[data-baseweb="tab"] {
+            font-size: 1.1rem !important;
+            font-weight: 800 !important;
+            color: #64748B !important;
+            padding: 0.85rem 1.8rem !important;
+            border-radius: 8px 8px 0 0 !important;
         }
-        .status-dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #2e7d32;
-            margin-right: 6px;
+        button[aria-selected="true"] {
+            color: #1E3A8A !important;
+            border-bottom: 4px solid #FF9933 !important;
+            background-color: #FFFFFF !important;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 7. DATAFRAMES & CARDS */
+        div[data-testid="stDataFrame"] {
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
         </style>
         """,
@@ -84,15 +158,9 @@ def inject_css() -> None:
 
 def load_data() -> pd.DataFrame | None:
     df = load_clean_parquet()
-    is_mock = df.attrs.get("source") == "mock"
-    df = df.copy()
-    if is_mock:
-        st.warning(
-            "Clean Parquet artifact not found in seed_data. Displaying deterministic sample mock "
-            "records so the demo keeps working."
-        )
     if df.empty:
         return None
+    df = df.copy()
     df["captured_at"] = pd.to_datetime(df["captured_at"], utc=True).dt.tz_localize(None)
     return df
 
@@ -101,45 +169,37 @@ def window_sort_key(window: str) -> int:
     return int(window[2:])
 
 
-def classify_outliers(outliers: pd.DataFrame) -> pd.DataFrame:
-    cohort_mean = outliers.groupby("advance_window")["base_fare"].transform("mean")
-    labeled = outliers.copy()
-    labeled["anomaly_type"] = labeled["base_fare"].gt(cohort_mean).map(
-        {True: "PRICE SPIKE", False: "SUB-MARKET DIP"}
-    )
-    return labeled
-
-
-def outlier_style_functions(outliers: pd.DataFrame):
-    cohort_mean = outliers.groupby("advance_window")["base_fare"].transform("mean")
-
-    def color_cells(row: pd.Series) -> list[str]:
-        if row["base_fare"] > cohort_mean[row.name]:
-            return ["background-color: #fdecea; color: #b71c1c; font-weight: 600"] * len(row)
-        return ["background-color: #e8f5e9; color: #1b5e20; font-weight: 600"] * len(row)
-
-    return outliers.style.apply(color_cells, axis=1)
-
-
 def _fmt_inr(value: float | None) -> str:
     return "N/A" if value is None else f"₹{value:,.2f}"
 
 
+def safe_unpack_dates(raw_range, fallback_min, fallback_max):
+    """Safely unpacks st.date_input tuples/lists to prevent IndexError."""
+    if isinstance(raw_range, (list, tuple)):
+        if len(raw_range) == 2:
+            return raw_range[0], raw_range[1]
+        elif len(raw_range) == 1:
+            return raw_range[0], raw_range[0]
+    elif raw_range is not None:
+        return raw_range, raw_range
+    return fallback_min, fallback_max
+
+
 def render_tab_trends(f: pd.DataFrame, route_full: pd.DataFrame) -> None:
     if f.empty or route_full.empty:
-        st.info("No observations match the current filters.")
+        st.info("No records match the active filter criteria.")
         return
 
     show_outliers = st.toggle(
-        "Show outliers in trend chart",
+        "Show statistical price anomalies (IQR / Z-Score Engine)",
         value=True,
-        help="Toggle anomalies flagged by the Role 2 IQR engine to compare index values with and without spikes.",
+        help="Toggle price spikes flagged by the automated outlier engine to evaluate pure index stability.",
     )
     chart_df = f if show_outliers else f[~f["is_outlier"]]
     outliers = f[f["is_outlier"]]
 
     if chart_df.empty:
-        st.warning("All records in this selection are outliers. Turn the toggle back on to view them.")
+        st.warning("All records in this selection are flagged as outliers. Enable the toggle to inspect.")
     else:
         mean_base = chart_df["base_fare"].mean()
         ref_base_mean = route_full["base_fare"].mean()
@@ -154,32 +214,69 @@ def render_tab_trends(f: pd.DataFrame, route_full: pd.DataFrame) -> None:
         mean_total = chart_df["total_quote"].mean()
         quality_score = 100.0 * (1.0 - f["is_outlier"].mean()) if len(f) else 0.0
 
+        # HIGH CONTRAST GOVERNMENT METRIC CARDS
         kpi = st.columns(4)
-        kpi[0].metric("Base Fare Index (Base 100)", f"{composite_index:,.2f}")
-        kpi[1].metric(
-            "Avg Base Fare (INR)",
-            _fmt_inr(mean_base),
-            delta=f"{delta_pct:.2f}% vs T+5" if delta_pct is not None else None,
-        )
-        kpi[2].metric("Avg Total Quote (INR)", _fmt_inr(mean_total))
-        kpi[3].metric("Data Quality Score", f"{quality_score:.1f}%")
 
-        st.caption("KPI block: base fare composite index vs route benchmark (base 100), pure base fare delta vs T+5 baseline, "
-                   "and share of valid non-outlier records in the current selection.")
-        
+        with kpi[0]:
+            st.metric(
+                label="Base Fare Index",
+                value=f"{composite_index:,.2f}",
+                delta=f"{composite_index - 100.0:+.2f} pts vs Base 100",
+                help="Laspeyres-style macro price index computed relative to historical route benchmark baseline (Base 100)."
+            )
+
+        with kpi[1]:
+            st.metric(
+                label="Avg Base Fare",
+                value=_fmt_inr(mean_base),
+                delta=f"{delta_pct:+.2f}% vs T+5 Horizon" if delta_pct is not None else None,
+                help="Pure unbundled core airline fare set by carriers (excluding taxes and convenience fees)."
+            )
+
+        with kpi[2]:
+            st.metric(
+                label="Avg Total Quote",
+                value=_fmt_inr(mean_total),
+                delta=f"₹{mean_total - mean_base:,.2f} Taxes & Surcharges" if mean_total and mean_base else None,
+                delta_color="off",
+                help="Final out-of-pocket price paid by consumer (Base Fare + Statutory Taxes + Airport UDF)."
+            )
+
+        with kpi[3]:
+            st.metric(
+                label="Data Quality Score",
+                value=f"{quality_score:.1f}%",
+                delta="0 Quarantined" if quality_score == 100.0 else f"{100.0 - quality_score:.1f}% Outliers",
+                help="Percentage of scraped records passing validation and statistical IQR outlier filtering."
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("Base Fare Trend & Advance-Window Convergence")
+        
+        # Plotly Figure with Custom Indian Flag Color Palette
         fig = build_trend_figure(chart_df, baseline_mean=route_full["base_fare"].mean())
+        fig.update_layout(
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#F8FAFC",
+            font=dict(color="#0F172A", family="Segoe UI"),
+            margin=dict(l=30, r=30, t=50, b=30),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1.0,
+                font=dict(color="#0F172A", size=11),
+            ),
+            colorway=["#FF9933", "#1E3A8A", "#138808", "#D97706", "#2563EB", "#059669"]
+        )
         st.plotly_chart(fig, width="stretch")
 
-    st.subheader("Outlier Inspection (Role 2 IQR Engine)")
+    st.subheader("Outlier Inspection (IQR / Z-Score Engine)")
     if not outliers.empty:
-        st.caption("Red = anomaly price spike, green = sub-market dip, each judged against the advance-window "
-                   "base fare cohort mean.")
-        labeled = classify_outliers(outliers)
-        columns = ["route_code", "advance_window", "departure_date", "base_fare", "total_quote",
-                   "anomaly_type", "outlier_reason"]
+        columns = ["route_code", "advance_window", "departure_date", "base_fare", "total_quote", "outlier_reason"]
         st.dataframe(
-            outlier_style_functions(labeled)[columns],
+            outliers[columns],
             width="stretch",
             column_config={
                 "base_fare": st.column_config.NumberColumn("Base Fare (INR)", format="₹ %.2f"),
@@ -187,7 +284,7 @@ def render_tab_trends(f: pd.DataFrame, route_full: pd.DataFrame) -> None:
             },
         )
     else:
-        st.info("No outlier records flagged by the Role 2 IQR engine in the current selection.")
+        st.info("No outlier records flagged by the IQR filtering engine in the active selection.")
 
     st.subheader("Observation Detail")
     st.dataframe(
@@ -198,7 +295,7 @@ def render_tab_trends(f: pd.DataFrame, route_full: pd.DataFrame) -> None:
 
 def render_tab_breakdown(f: pd.DataFrame, matrix_df: pd.DataFrame) -> None:
     if f.empty:
-        st.info("No observations match the current filters.")
+        st.info("No observations match the active filter criteria.")
         return
 
     metric_cols = st.columns(3)
@@ -231,75 +328,20 @@ def render_tab_breakdown(f: pd.DataFrame, matrix_df: pd.DataFrame) -> None:
     st.plotly_chart(build_route_heatmap(matrix_df, value=heat_value), width="stretch")
 
 
-def render_tab_pipeline(all_df: pd.DataFrame) -> None:
-    if all_df.empty:
-        st.info("No clean pipeline data to display.")
-        return
+# INJECT VIBRANT THEME
+inject_vibrant_indian_theme()
 
-    st.markdown(
-        "<div>"
-        "<span class='status-badge'><span class='status-dot'></span>Ingestion Locked (Role 1)</span>"
-        "<span class='status-badge'><span class='status-dot'></span>Parquet Cleaned (Role 2)</span>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-    st.caption("Green status badges confirm the Role 1 ingestion and Role 2 parquet hand-offs are locked and ready "
-               "for downstream analytics.")
-
-    jsonl_size = STAGING_JSONL_PATH.stat().st_size if STAGING_JSONL_PATH.exists() else 0
-    parquet_size = PARQUET_PATH.stat().st_size if PARQUET_PATH.exists() else 0
-    compression_pct = (1.0 - parquet_size / jsonl_size) * 100.0 if jsonl_size else 0.0
-    bytes_saved = jsonl_size - parquet_size if jsonl_size else 0
-
-    storage_cols = st.columns(3)
-    storage_cols[0].metric("Raw Staging Size", f"{jsonl_size / 1024:.1f} KB")
-    storage_cols[1].metric("Clean Parquet Size", f"{parquet_size / 1024:.1f} KB")
-    storage_cols[2].metric(
-        "Compression Efficiency",
-        f"{compression_pct:.1f}%",
-        delta=f"{bytes_saved / 1024:.1f} KB saved on disk",
-        delta_color="normal",
-    )
-    st.caption(
-        f"Disk hand-off comparison: {STAGING_JSONL_PATH.name} {jsonl_size:,} bytes -> "
-        f"{PARQUET_PATH.name} {parquet_size:,} bytes (Snappy codec)."
-    )
-
-    pipeline_cols = st.columns(3)
-    pipeline_cols[0].metric("Clean Rows Loaded", f"{len(all_df):,}")
-    outliers = all_df[all_df["is_outlier"]]
-    pipeline_cols[1].metric("Rows Flagged Outlier", f"{int(outliers['is_outlier'].sum()):,}")
-    pipeline_cols[2].metric("Quarantined Payloads", f"{count_quarantine_payloads():,}")
-
-    if not outliers.empty:
-        st.subheader("Flagged Outlier Rows")
-        st.dataframe(
-            outliers[["route_code", "advance_window", "base_fare", "total_quote", "outlier_reason"]],
-            width="stretch",
-        )
-
-    st.subheader("Raw JSONL Inspector")
-    raw_records = load_raw_staging_jsonl()
-    if not raw_records:
-        st.info("No staging payloads found in seed_data/staging_raw_payloads.jsonl.")
-        return
-    labels = [
-        f"Record {i + 1} | {r.get('route_code', '?')} | {r.get('advance_window', '?')} | "
-        f"scraped {r.get('scraped_at', '?')[:19]}"
-        for i, r in enumerate(raw_records)
-    ]
-    record_idx = st.selectbox("Select an intercepted staging record", range(len(labels)),
-                              format_func=lambda i: labels[i])
-    st.json(raw_records[record_idx])
-
-
-inject_css()
-
+# NATIONAL PORTAL HEADER
 st.markdown(
-    "<div class='dashboard-header'>"
-    "<h1>Automated Real-Time Airfare Index for Indian CPI</h1>"
-    "<p>MOSPI Airfare Indexing & Base Fare Price Analytics Engine (NSO / RBI Scope)</p>"
-    "</div>",
+    """
+    <div class="gov-banner">
+        <div class="gov-title-box">
+            <h1>🇮🇳 Automated Real-Time Airfare Index</h1>
+            <p>National CPI Inflation Tracking & Base Fare Analytics Engine | MoSPI & RBI Scope</p>
+        </div>
+        <div class="sih-badge">SIH PS ID: 26056</div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
@@ -319,24 +361,26 @@ else:
     max_date = None
 
 route = st.sidebar.selectbox(
-    "Route",
+    "Route Corridor",
     all_routes,
     index=all_routes.index("DEL-BOM") if "DEL-BOM" in all_routes else 0,
 )
 
 windows = st.sidebar.multiselect(
-    "Advance Window (Lead Time)",
+    "Advance Purchase Window",
     window_options,
     default=[w for w in DEFAULT_WINDOWS if w in window_options],
 )
 
 if min_date is not None and max_date is not None:
-    date_range = st.sidebar.date_input(
+    raw_date_range = st.sidebar.date_input(
         "Execution Timestamp Range",
         value=(min_date, max_date),
         min_value=min_date,
         max_value=max_date,
     )
+    start_d, end_d = safe_unpack_dates(raw_date_range, min_date, max_date)
+    date_range = (start_d, end_d)
 else:
     date_range = (None, None)
 
@@ -352,18 +396,15 @@ if df is not None:
     f = matrix_df[matrix_df["route_code"] == route]
     route_full = df[df["route_code"] == route]
 
-    tab1, tab2, tab3 = st.tabs(
-        [
-            "Airfare Index & Price Trends",
-            "Unbundled Fare Breakdown",
-            "Pipeline Health & Staging Logs",
-        ]
-    )
+    # CLEAN 2-TAB EXECUTIVE LAYOUT
+    tab1, tab2 = st.tabs([
+        "📊 Airfare Index & Price Trends",
+        "📑 Unbundled Fare Breakdown",
+    ])
+
     with tab1:
         render_tab_trends(f, route_full)
     with tab2:
         render_tab_breakdown(f, matrix_df)
-    with tab3:
-        render_tab_pipeline(df)
 else:
-    st.info("Load the Role 2 clean Parquet artifact to populate the dashboard tabs.")
+    st.info("Load or generate the clean Parquet dataset to populate analytics tabs.")
