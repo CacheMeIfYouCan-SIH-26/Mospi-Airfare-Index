@@ -6,6 +6,7 @@
 * **PS Title**: Automated Real-Time Airfare Inflation Tracking & Base Fare Decomposition Engine
 * **Category**: Software
 * **Theme**: Smart Governance / Macroeconomic Analytics (MoSPI & RBI Scope)
+* **website link**:https://cachemeifyoucan-sih-26-mospi-airfare-inde-srcfrontendapp-kvccay.streamlit.app/
 
 ---
 
