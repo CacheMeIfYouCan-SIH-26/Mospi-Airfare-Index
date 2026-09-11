@@ -97,11 +97,13 @@ User / Policy Analyst
 ├── requirements.txt           # Python dependency manifest
 ```
 ## 8. Final Presentation
-* Details regarding the final submission slides and structural deck are documented in `submission/PRESENTATION.md`.
-* Access the accessible viewer link or presentation document directly inside `submission/PRESENTATION.md`.
+* Details regarding the final submission slides and structural deck are documented in the presentation.
+* Access the accessible viewer link or presentation document
+* https://docs.google.com/presentation/d/1viLoVd2Ekx4qceIFHQAUN09C9PM8b4KR/edit?usp=sharing&ouid=104690248494433943957&rtpof=true&sd=true.
 
 ## 9. Demo Video
-A walkthrough video demonstrating the data ingestion, unbundling pipeline, and Streamlit command center is linked in `submission/DEMO.md`.
+*A walkthrough video demonstrating the data ingestion, unbundling pipeline, and Streamlit command center is linked in
+*https://drive.google.com/file/d/15G12AtM7bl7TwIVEG-T28yWig9Dg_g6r/view?usp=sharing.
 
 ## 11. Installation
 
