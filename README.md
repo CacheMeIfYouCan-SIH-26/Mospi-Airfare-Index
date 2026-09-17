@@ -99,7 +99,7 @@ User / Policy Analyst
 ## 8. Final Presentation
 * Details regarding the final submission slides and structural deck are documented in the presentation.
 * Access the accessible viewer link or presentation document
-* https://docs.google.com/presentation/d/1viLoVd2Ekx4qceIFHQAUN09C9PM8b4KR/edit?usp=sharing&ouid=104690248494433943957&rtpof=true&sd=true.
+* https://1drv.ms/p/c/4C2FE1EE8574F227/IQCa2siqHtlsSZ89iMXkOGOwAQSZPW3MoUngsZuqQNAtJCc?e=L6xaV7
 
 ## 9. Demo Video
 *A walkthrough video demonstrating the data ingestion, unbundling pipeline, and Streamlit command center is linked in
