@@ -47,6 +47,7 @@ CALENDAR_DESCRIPTIONS = {
     "T+30": "30 Days Before Flight (1 Mo Prior)",
     "T+45": "45 Days Before Flight (1.5 Mo Prior)",
 }
+
 IATA_CITY_MAP = {
     "DEL": "Delhi",
     "BOM": "Mumbai",
@@ -65,21 +66,26 @@ def inject_analytics_theme() -> None:
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+        /* 1. CLEAN LIGHT BACKGROUND */
         .stApp, [data-testid="stAppViewContainer"] {
             background-color: #F8FAFC !important;
             color: #0F172A !important;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
         }
 
-        header[data-testid="stHeader"],
-        .stDeployButton,
-        #MainMenu,
-        footer {
-            display: none !important;
-            visibility: hidden !important;
-            height: 0 !important;
+        /* KEEP SIDEBAR TOGGLE BUTTON VISIBLE */
+        header[data-testid="stHeader"] {
+            background: transparent !important;
+            visibility: visible !important;
+        }
+        [data-testid="collapsedControl"] {
+            display: block !important;
+            visibility: visible !important;
+            color: #0F172A !important;
+            z-index: 999999;
         }
 
+        /* FORCE ALL PROSE TEXT DARK */
         .stApp p, .stApp span, .stApp label,
         .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {
             color: #0F172A !important;
@@ -88,12 +94,14 @@ def inject_analytics_theme() -> None:
             color: #334155 !important;
         }
 
+        /* 2. LAYOUT PADDING */
         .block-container {
             padding-top: 1.5rem !important;
             padding-bottom: 3rem !important;
             max-width: 1200px !important;
         }
 
+        /* 3. GOOGLE FLIGHTS PRICE INSIGHTS CARD */
         .gf-insight-card {
             background: #FFFFFF;
             border: 1px solid #E2E8F0;
@@ -164,31 +172,7 @@ def inject_analytics_theme() -> None:
             border-color: #0F172A transparent transparent transparent;
         }
 
-        .analytics-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #FFFFFF;
-            padding: 1.2rem 2rem;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-            border: 1px solid #E2E8F0;
-            margin-bottom: 1.8rem;
-        }
-        .analytics-title-box h1 {
-            color: #0F172A !important;
-            font-size: 1.8rem !important;
-            font-weight: 700 !important;
-            margin: 0 !important;
-            letter-spacing: -0.5px;
-        }
-        .analytics-subtitle {
-            font-size: 0.9rem;
-            color: #64748B !important;
-            font-weight: 500;
-            margin-top: 4px;
-        }
-
+        /* 4. DATA CARDS (FIGMA ANALYTICS UI) */
         .analytics-card {
             background: #FFFFFF;
             border-radius: 12px;
@@ -202,6 +186,7 @@ def inject_analytics_theme() -> None:
             flex-wrap: wrap;
             gap: 1rem;
             transition: all 0.2s ease-in-out;
+            animation: fadeInUp 0.3s ease-out forwards;
         }
         .analytics-card:hover {
             border-color: #CBD5E1;
@@ -282,6 +267,7 @@ def inject_analytics_theme() -> None:
             border-color: #94A3B8;
         }
 
+        /* 5. SIDEBAR & WIDGET OVERRIDES */
         section[data-testid="stSidebar"] {
             background-color: #FFFFFF !important;
             border-right: 1px solid #E2E8F0 !important;
@@ -296,6 +282,7 @@ def inject_analytics_theme() -> None:
             font-size: 0.85rem !important;
         }
 
+        /* INPUT CONTAINERS */
         div[data-baseweb="select"] > div,
         div[data-baseweb="input"] > div,
         [data-baseweb="base-input"],
@@ -310,6 +297,7 @@ def inject_analytics_theme() -> None:
             background-color: transparent !important;
         }
 
+        /* MULTISELECT PILLS */
         span[data-baseweb="tag"] {
             background-color: #EEF2FF !important;
             border: 1px solid #C7D2FE !important;
@@ -323,6 +311,28 @@ def inject_analytics_theme() -> None:
             fill: #4338CA !important;
         }
 
+        /* CALENDAR POPOVER & DIALOG FIXES */
+        div[data-baseweb="popover"],
+        div[data-baseweb="calendar"],
+        div[role="dialog"],
+        ul[role="listbox"] {
+            background-color: #FFFFFF !important;
+            color: #0F172A !important;
+            border: 1px solid #E2E8F0 !important;
+            border-radius: 12px !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important;
+        }
+        div[data-baseweb="calendar"] * {
+            color: #0F172A !important;
+            background-color: transparent !important;
+        }
+        div[data-baseweb="calendar"] button[aria-selected="true"] {
+            background-color: #6366F1 !important;
+            color: #FFFFFF !important;
+            border-radius: 50% !important;
+        }
+
+        /* 6. KPI CARDS */
         div[data-testid="stMetric"] {
             background-color: #FFFFFF !important;
             border: 1px solid #E2E8F0 !important;
@@ -337,6 +347,22 @@ def inject_analytics_theme() -> None:
         div[data-testid="stMetricValue"] div {
             color: #0F172A !important;
             font-weight: 700 !important;
+        }
+
+        /* 7. TAB STYLING */
+        button[data-baseweb="tab"] {
+            font-size: 0.95rem !important;
+            font-weight: 600 !important;
+            color: #64748B !important;
+        }
+        button[aria-selected="true"] {
+            color: #0F172A !important;
+            border-bottom: 3px solid #6366F1 !important;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         </style>
         """,
@@ -575,7 +601,7 @@ def render_analytics_cards(obs_df: pd.DataFrame) -> None:
 
 def render_tab_trends(f: pd.DataFrame, route_full: pd.DataFrame) -> None:
     if f.empty or route_full.empty:
-        st.info("No records match the active filter criteria.")
+        st.info("No records match the active filter criteria. Try changing the Route Corridor.")
         return
 
     render_google_flights_price_bar(f, f["route_code"].iloc[0] if not f.empty else "DEL-BOM")
@@ -748,9 +774,9 @@ def render_tab_trends(f: pd.DataFrame, route_full: pd.DataFrame) -> None:
                 "captured_at": st.column_config.DatetimeColumn("🕒 Ingestion Timestamp", format="YYYY-MM-DD HH:mm"),
                 "base_fare": st.column_config.NumberColumn("💵 Core Base Fare", format="₹ %.2f"),
                 "tax_udf": st.column_config.NumberColumn("🏛️ Tax & Airport UDF", format="₹ %.2f"),
-                "convenience_fee": st.column_config.NumberColumn("🎟️️ Convenience Fee", format="₹ %.2f"),
+                "convenience_fee": st.column_config.NumberColumn("🎟️ Convenience Fee", format="₹ %.2f"),
                 "total_quote": st.column_config.NumberColumn("💳 Total Out-of-Pocket Quote", format="₹ %.2f"),
-                "quality_status": st.column_config.TextColumn("🛡️ IQR Data Quality", help="Statistical outlier validation status"),
+                "quality_status": st.column_config.TextColumn("🛡️️ IQR Data Quality", help="Statistical outlier validation status"),
                 "gcal_sync": st.column_config.LinkColumn("📆 Google Calendar", display_text="📅 Sync Event", help="Direct link to add flight departure to your Google Calendar"),
             },
             hide_index=True,
@@ -872,26 +898,6 @@ def render_tab_export(df: pd.DataFrame | None) -> None:
 # INJECT THEME
 inject_analytics_theme()
 
-# CLEAN HEADER WITH FUNCTIONAL FLIGHT SEARCH BAR
-header_col1, header_col2 = st.columns([3, 1])
-with header_col1:
-    st.markdown(
-        """
-        <div style="padding: 0.2rem 0;">
-            <h1 style="color: #0F172A; font-size: 1.8rem; font-weight: 700; margin: 0; letter-spacing: -0.5px;">Analytics Dashboard</h1>
-            <div style="font-size: 0.9rem; color: #64748B; font-weight: 500; margin-top: 4px;">MoSPI & RBI National Airfare Inflation Index</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-with header_col2:
-    global_search = st.text_input(
-        "Search Flights",
-        placeholder="Search route or dates...",
-        label_visibility="collapsed",
-        key="global_header_search"
-    )
-
 # SIDEBAR FILTERS & SCRAPE PERIOD SELECTION
 st.sidebar.header("Target Scraping Period")
 
@@ -947,6 +953,35 @@ if st.sidebar.button("🚀 Scrape Live Data Now"):
 st.sidebar.markdown("---")
 st.sidebar.caption("**MoSPI Airfare Analytics**\n\nAutomated stealth scraping and IQR statistical validation engine.")
 
+
+# FIXED HEADER WITH CLEAN COLUMNS, ROUTE SWITCHER, AND RECOMMENDATION SEARCH BAR
+header_col1, header_col2, header_col3 = st.columns([1.8, 1.4, 1.4])
+with header_col1:
+    st.markdown(
+        """
+        <div style="padding: 0.1rem 0;">
+            <h1 style="color: #0F172A; font-size: 1.6rem; font-weight: 700; margin: 0; letter-spacing: -0.5px;">Analytics Dashboard</h1>
+            <div style="font-size: 0.85rem; color: #64748B; font-weight: 500; margin-top: 2px;">MoSPI & RBI National Airfare Inflation Index</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+with header_col2:
+    main_route_select = st.selectbox("Switch Route Corridor", all_routes, index=all_routes.index(route), key="main_route_switcher")
+    if main_route_select != route:
+        route = main_route_select
+with header_col3:
+    global_search = st.text_input(
+        "Search or Filter Flights",
+        placeholder="e.g. DEL-BOM or 2026-09-30...",
+        key="global_header_search"
+    )
+    # Flight search recommendations / suggestions when empty
+    if not global_search:
+        st.caption("💡 *Tip: Try searching routes like `DEL-BOM`, `BLR-DEL`, or dates like `2026-09-30`*")
+
+st.markdown("<hr style='margin: 0.8rem 0; border-color: #E2E8F0;'>", unsafe_allow_html=True)
+
 # LOAD DATA & RENDER MAIN TABS
 df = load_data(route, start_d, end_d)
 
@@ -955,11 +990,13 @@ if windows and not df.empty:
 
 if global_search:
     q_global = global_search.lower()
-    df = df[
-        df["route_code"].str.lower().str.contains(q_global) |
-        df["departure_date"].astype(str).str.contains(q_global) |
-        df["advance_window"].str.lower().str.contains(q_global)
-    ]
+    df_global_matched = load_data(route, start_d, end_d)
+    if not df_global_matched.empty:
+        df = df_global_matched[
+            df_global_matched["route_code"].str.lower().str.contains(q_global) |
+            df_global_matched["departure_date"].astype(str).str.contains(q_global) |
+            df_global_matched["advance_window"].str.lower().str.contains(q_global)
+        ]
 
 matrix_df = df.copy()
 f = matrix_df[matrix_df["route_code"] == route] if not matrix_df.empty else matrix_df
