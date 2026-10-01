@@ -103,7 +103,7 @@ User / Policy Analyst
 
 ## 9. Demo Video
 *A walkthrough video demonstrating the data ingestion, unbundling pipeline, and Streamlit command center is linked in
-*https://drive.google.com/file/d/15G12AtM7bl7TwIVEG-T28yWig9Dg_g6r/view?usp=sharing.
+*https://youtu.be/jzxDZ4e-H_s?si=L1ohm6lrwh-MX7pV
 
 ## 11. Installation
 
