@@ -105,7 +105,7 @@ User / Policy Analyst
 *A walkthrough video demonstrating the data ingestion, unbundling pipeline, and Streamlit command center is linked in
 *https://youtu.be/jzxDZ4e-H_s?si=L1ohm6lrwh-MX7pV
 
-## 11. Installation
+## 10. Installation
 
 1. **Clone the repository**:
 ```bash
@@ -120,14 +120,8 @@ pip install -r requirements.txt
 ```bash
 playwright install chromium
 ```
-## 12. Run
+## 11. Run
 Step 1: Run the Data Pipeline (Role 2 Cleaning)
-Process raw staging payloads from seed_data/ into a clean Parquet dataset:
-```bash
-python -m src.engineering.clean_staging_lead
-```
-##12. Run
-Step 1: Run the Data Pipeline
 Process raw staging payloads from seed_data/ into a clean Parquet dataset:
 ```bash
 python -m src.engineering.clean_staging_lead
